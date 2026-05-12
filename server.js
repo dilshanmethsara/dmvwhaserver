@@ -32,11 +32,22 @@ app.post('/send-message', async (req, res) => {
       });
     }
 
-    // Validate phone number format (basic validation)
-    if (typeof to !== 'string' || !/^\d+$/.test(to)) {
+    // Validate phone number or group ID format
+    if (typeof to !== 'string') {
       return res.status(400).json({
         success: false,
-        error: 'Invalid phone number format. Should contain only digits.'
+        error: 'Invalid recipient format. Must be a string.'
+      });
+    }
+
+    // Support both individual phone numbers (digits only) and group IDs (format: number@g.us)
+    const isValidPhone = /^\d+$/.test(to);
+    const isValidGroupId = /^\d+@g\.us$/.test(to);
+    
+    if (!isValidPhone && !isValidGroupId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid recipient format. Use phone number (digits only) or group ID (format: 1234567890@g.us)'
       });
     }
 
