@@ -15,7 +15,8 @@ app.get('/', (req, res) => {
     message: 'WhatsApp API Wrapper is running',
     endpoints: {
       'POST /send-message': 'Send a WhatsApp message',
-      'GET /chats': 'Get chat list'
+      'GET /chats': 'Get chat list',
+      'GET /groups': 'Get group chats with IDs and names'
     }
   });
 });
@@ -54,6 +55,80 @@ app.get('/chats', async (req, res) => {
 
   } catch (error) {
     console.error('Error getting chat list:', error.message);
+    
+    // Handle different types of errors
+    if (error.response) {
+      // The external API returned an error
+      res.status(error.response.status).json({
+        success: false,
+        error: error.response.data || 'External API error',
+        status: error.response.status
+      });
+    } else if (error.request) {
+      // Network error
+      res.status(500).json({
+        success: false,
+        error: 'Network error: Unable to reach external API'
+      });
+    } else {
+      // Other error
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+});
+
+// Get groups endpoint
+app.get('/groups', async (req, res) => {
+  try {
+    const limit = req.query.limit || 100;
+    
+    // Validate limit parameter
+    const limitNum = parseInt(limit);
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid limit parameter. Must be between 1 and 100.'
+      });
+    }
+
+    const apiUrl = `${process.env.WHATSAPP_API_BASE_URL}/api/v1/chats`;
+    
+    const response = await axios.get(apiUrl, {
+      params: {
+        sessionId: process.env.WHATSAPP_SESSION_ID,
+        limit: limitNum
+      },
+      headers: {
+        'Authorization': `Bearer ${process.env.WHATSAPP_API_KEY}`
+      }
+    });
+
+    // Filter only group chats and extract relevant information
+    const groups = response.data.chats
+      .filter(chat => chat.isGroup === true)
+      .map(group => ({
+        groupId: group.jid,
+        name: group.name || 'Unnamed Group',
+        phone: group.phone,
+        pinned: group.pinned,
+        archived: group.archived,
+        mutedUntil: group.mutedUntil
+      }));
+
+    // Return the filtered group list
+    res.json({
+      success: true,
+      data: {
+        groups: groups,
+        totalGroups: groups.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting groups:', error.message);
     
     // Handle different types of errors
     if (error.response) {
